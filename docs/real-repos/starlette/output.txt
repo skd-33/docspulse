@@ -1,0 +1,65 @@
+[DocsPulse] Found 18 command(s) to verify in C:\Users\hp\AppData\Local\Temp\docspulse_git_fu9d_b8r.
+[DocsPulse] Running: pip install starlette
+[DocsPulse] Running: pip install uvicorn
+[DocsPulse] Running: from starlette.applications import Starlette
+[DocsPulse] Running: from starlette.responses import JSONResponse
+[DocsPulse] Running: from starlette.routing import Route
+[DocsPulse] Running: async def homepage(request):
+[DocsPulse] Running: return JSONResponse({'hello': 'world'})
+[DocsPulse] Running: routes = [
+[DocsPulse] Running: Route("/", endpoint=homepage)
+[DocsPulse] Running: ]
+[DocsPulse] Running: app = Starlette(debug=True, routes=routes)
+[DocsPulse] Running: uvicorn main:app
+[DocsPulse] Running: from starlette.responses import PlainTextResponse
+[DocsPulse] Running: async def app(scope, receive, send):
+[DocsPulse] Running: assert scope['type'] == 'http'
+[DocsPulse] Running: response = PlainTextResponse('Hello, world!')
+[DocsPulse] Running: await response(scope, receive, send)
+[DocsPulse] Running: uvicorn example:app
+
+[DocsPulse] Report written to: C:\Users\hp\Desktop\HACTOOBER\HACKDAYS\docspulse\report.md
+
+============================================================
+ DocsPulse Verification Summary
+============================================================
+Total: 18 | Passed: 2 | Failed: 0 | Skipped: 16 | Verified Fixes: 0
+------------------------------------------------------------
+[PASS   ] Line 51: pip install starlette
+[PASS   ] Line 57: pip install uvicorn
+[SKIPPED] Line 63: from starlette.applications import Starlette
+          Reason: First token 'from' is not allowed
+[SKIPPED] Line 64: from starlette.responses import JSONResponse
+          Reason: First token 'from' is not allowed
+[SKIPPED] Line 65: from starlette.routing import Route
+          Reason: First token 'from' is not allowed
+[SKIPPED] Line 68: async def homepage(request):
+          Reason: First token 'async' is not allowed
+[SKIPPED] Line 69: return JSONResponse({'hello': 'world'})
+          Reason: First token 'return' is not allowed
+[SKIPPED] Line 71: routes = [
+          Reason: First token 'routes' is not allowed
+[SKIPPED] Line 72: Route("/", endpoint=homepage)
+          Reason: First token 'Route("/",' is not allowed
+[SKIPPED] Line 73: ]
+          Reason: First token ']' is not allowed
+[SKIPPED] Line 75: app = Starlette(debug=True, routes=routes)
+          Reason: First token 'app' is not allowed
+[SKIPPED] Line 81: uvicorn main:app
+          Reason: First token 'uvicorn' is not allowed
+[SKIPPED] Line 103: from starlette.responses import PlainTextResponse
+          Reason: First token 'from' is not allowed
+[SKIPPED] Line 106: async def app(scope, receive, send):
+          Reason: First token 'async' is not allowed
+[SKIPPED] Line 107: assert scope['type'] == 'http'
+          Reason: First token 'assert' is not allowed
+[SKIPPED] Line 108: response = PlainTextResponse('Hello, world!')
+          Reason: First token 'response' is not allowed
+[SKIPPED] Line 109: await response(scope, receive, send)
+          Reason: First token 'await' is not allowed
+[SKIPPED] Line 115: uvicorn example:app
+          Reason: First token 'uvicorn' is not allowed
+============================================================
+RESULT: PASSED (All commands executed successfully or have verified fixes)
+============================================================
+

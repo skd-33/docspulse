@@ -32,19 +32,82 @@ def clean_llm_response(text: str) -> str:
     return cmd.strip()
 
 
+def extract_versions_line(text: str) -> Optional[str]:
+    """Extract line containing (from versions: ...) if present."""
+    for line in text.splitlines():
+        if "(from versions:" in line.lower():
+            return line.strip()
+    return None
+
+
+def get_heuristic_pip_fixes(command: str, stderr: str, stdout: str = "") -> list[str]:
+    """
+    Deterministic fixes for pip install failures containing:
+    'No matching distribution found' or 'Could not find a version'
+    (a) if the error has '(from versions: ...)', propose pip install <pkg>==<highest listed version>
+    (b) otherwise propose the same install without the version pin.
+    """
+    combined = f"{stderr}\n{stdout}"
+    combined_lower = combined.lower()
+
+    if not ("no matching distribution found" in combined_lower or "could not find a version" in combined_lower):
+        return []
+
+    # Find pinned package in command: <pkg>==<ver>
+    pkg_pin_match = re.search(r"\b([a-zA-Z0-9_\-\.]+)\s*==\s*[a-zA-Z0-9_\-\.]+", command)
+    if not pkg_pin_match:
+        # Fallback: check requirement in error message
+        req_match = re.search(r"requirement\s+([a-zA-Z0-9_\-\.]+)==", combined, re.IGNORECASE)
+        if req_match:
+            pkg_name = req_match.group(1)
+            pkg_pin_match = re.search(rf"\b{re.escape(pkg_name)}\s*==\s*[a-zA-Z0-9_\-\.]+", command)
+        else:
+            return []
+
+    if not pkg_pin_match:
+        return []
+
+    pkg_name = pkg_pin_match.group(1)
+    full_pin = pkg_pin_match.group(0)
+
+    candidates: list[str] = []
+
+    # Check (a): (from versions: ...)
+    m_versions = re.search(r"\(from versions:\s*([^\)]+)\)", combined, re.IGNORECASE)
+    if m_versions:
+        content = m_versions.group(1).strip()
+        if content and content.lower() != "none":
+            versions = [v.strip() for v in content.split(",") if v.strip() and v.strip().lower() != "none"]
+            if versions:
+                highest_version = versions[-1]
+                cand_a = command.replace(full_pin, f"{pkg_name}=={highest_version}")
+                if cand_a != command:
+                    candidates.append(cand_a)
+
+    # Candidate (b): same install without version pin
+    cand_b = command.replace(full_pin, pkg_name)
+    if cand_b != command and cand_b not in candidates:
+        candidates.append(cand_b)
+
+    return candidates
+
+
 def build_fix_prompt(
     failed_command: str,
     stderr_tail: str,
     attempt: int = 1,
     previous_fix: Optional[str] = None,
     previous_error: Optional[str] = None,
+    versions_line: Optional[str] = None,
 ) -> str:
     """Create a short, strict prompt for LLM fix generation."""
+    versions_section = f"\nAvailable versions info:\n{versions_line}\n" if versions_line else ""
+
     if attempt == 1:
         return (
             f"Fix this failed command.\n"
             f"Command: {failed_command}\n"
-            f"Error:\n{stderr_tail}\n\n"
+            f"Error:\n{stderr_tail}{versions_section}\n\n"
             f"Reply with ONLY one corrected command on one line. No explanation, no markdown."
         )
     else:
@@ -52,7 +115,7 @@ def build_fix_prompt(
         return (
             f"Fix this failed command.\n"
             f"Original Command: {failed_command}\n"
-            f"Original Error:\n{stderr_tail}\n"
+            f"Original Error:\n{stderr_tail}{versions_section}\n"
             f"Previous attempt that FAILED: {previous_fix}{prev_err_text}\n\n"
             f"Instruct: Do NOT repeat the previous failed command '{previous_fix}' or the original command.\n"
             f"Reply with ONLY one DIFFERENT corrected command on one line. No explanation, no markdown."
@@ -62,7 +125,7 @@ def build_fix_prompt(
 def ask_llm(
     prompt: str,
     provider: str = "ollama",
-    model: str = "qwen2.5:1.5b",
+    model: str = "qwen2.5-coder:3b",
 ) -> str:
     """
     Dispatch LLM query by provider:
@@ -140,52 +203,91 @@ def attempt_fix(
     cmd_result: dict,
     runner: "VenvRunner",
     provider: str = "ollama",
-    model: str = "qwen2.5:1.5b",
+    model: str = "qwen2.5-coder:3b",
 ) -> dict:
     """
-    Attempt to fix a failed command using LLM and verify by re-running in the venv.
-    Labels 'VERIFIED FIX' or 'FIX NOT VERIFIED' (max 2 attempts).
-    Never re-runs a candidate identical to one already tried.
+    Attempt to fix a failed command using:
+    1. Deterministic heuristic fixes (run BEFORE LLM)
+    2. LLM fixes (if provider is not none)
+    Max 3 candidates total per failed command, deduplicated.
+    Labels each fix with fix_source ('heuristic' or 'llm').
     """
-    if provider == "none" or cmd_result.get("status") != "FAIL":
+    if cmd_result.get("status") != "FAIL":
         return cmd_result
 
     failed_cmd = cmd_result.get("command", "")
+    stderr = cmd_result.get("stderr", "")
+    stdout = cmd_result.get("stdout", "")
     stderr_tail = cmd_result.get("stderr_tail", "")
 
     tried_candidates = {failed_cmd}
-    prev_fix = None
-    prev_error = None
+    candidates_count = 0
 
-    for attempt in range(1, 3):
+    # 1. Deterministic heuristic fixes (run BEFORE LLM)
+    heuristic_candidates = get_heuristic_pip_fixes(failed_cmd, stderr, stdout)
+    for candidate in heuristic_candidates:
+        if candidates_count >= 3:
+            break
+        if candidate in tried_candidates:
+            continue
+
+        tried_candidates.add(candidate)
+        candidates_count += 1
+        cmd_result["fix"] = candidate
+        cmd_result["fix_source"] = "heuristic"
+
+        safety_status, reason = check_safety(candidate)
+        if safety_status != "run":
+            print(f"[DocsPulse] Proposed heuristic fix '{candidate}' rejected by safety: {reason}")
+            cmd_result["fix_status"] = "FIX NOT VERIFIED"
+            continue
+
+        print(f"[DocsPulse] Testing heuristic fix ({candidates_count}/3): {candidate}")
+        rerun_res = runner.run_raw(candidate)
+        if rerun_res.get("exit_code") == 0:
+            cmd_result["fix_status"] = "VERIFIED FIX"
+            cmd_result["fix"] = candidate
+            cmd_result["fix_source"] = "heuristic"
+            return cmd_result
+        else:
+            cmd_result["fix_status"] = "FIX NOT VERIFIED"
+            stderr_tail = rerun_res.get("stderr_tail") or stderr_tail
+
+    # 2. LLM fixes (if provider is not none and budget remaining)
+    if provider == "none" or candidates_count >= 3:
+        return cmd_result
+
+    prev_fix = cmd_result.get("fix")
+    prev_error = stderr_tail
+    versions_line = extract_versions_line(f"{stderr}\n{stdout}")
+
+    while candidates_count < 3:
         prompt = build_fix_prompt(
             failed_cmd,
             stderr_tail,
-            attempt=attempt,
+            attempt=candidates_count + 1,
             previous_fix=prev_fix,
             previous_error=prev_error,
+            versions_line=versions_line,
         )
         raw_reply = ask_llm(prompt, provider=provider, model=model)
         candidate = clean_llm_response(raw_reply)
 
         if not candidate:
-            if attempt == 1:
-                cmd_result["fix"] = None
-                cmd_result["fix_status"] = None
-            return cmd_result
+            break
 
         cmd_result["fix"] = candidate
+        cmd_result["fix_source"] = "llm"
 
-        # Never re-run a candidate identical to one already tried
         if candidate in tried_candidates:
             print(f"[DocsPulse] LLM proposed already-tried command '{candidate}'. Skipping re-run.")
             cmd_result["fix_status"] = "FIX NOT VERIFIED"
-            return cmd_result
+            break
 
         tried_candidates.add(candidate)
+        candidates_count += 1
         prev_fix = candidate
 
-        # Safety validation
         safety_status, reason = check_safety(candidate)
         if safety_status != "run":
             print(f"[DocsPulse] Proposed fix '{candidate}' rejected by safety: {reason}")
@@ -193,12 +295,12 @@ def attempt_fix(
             prev_error = reason
             continue
 
-        # Re-run candidate command in the same venv
-        print(f"[DocsPulse] Testing fix (attempt {attempt}/2): {candidate}")
+        print(f"[DocsPulse] Testing LLM fix ({candidates_count}/3): {candidate}")
         rerun_res = runner.run_raw(candidate)
         if rerun_res.get("exit_code") == 0:
             cmd_result["fix_status"] = "VERIFIED FIX"
             cmd_result["fix"] = candidate
+            cmd_result["fix_source"] = "llm"
             return cmd_result
         else:
             cmd_result["fix_status"] = "FIX NOT VERIFIED"

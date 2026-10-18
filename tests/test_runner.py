@@ -6,10 +6,45 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from docspulse.runner import VenvRunner, map_command
+from docspulse.runner import VenvRunner, extract_error_line, map_command
 
 
 class TestRunner(unittest.TestCase):
+    def test_extract_error_line_real_pip_output(self):
+        real_pip_stderr = """
+WARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None))
+ERROR: Ignored the following yanked versions: 2.32.0, 2.32.1
+ERROR: Could not find a version that satisfies the requirement requests==99.0.0 (from versions: 0.2.0, 0.2.1, 2.31.0, 2.32.3)
+ERROR: No matching distribution found for requests==99.0.0
+"""
+        err_line = extract_error_line(real_pip_stderr)
+        self.assertEqual(
+            err_line,
+            "ERROR: No matching distribution found for requests==99.0.0",
+        )
+
+        # Single error line that is not yanked
+        single_pip_stderr = """
+ERROR: Ignored the following yanked versions: 1.0.0
+ERROR: Could not find a version that satisfies the requirement foo==2.0 (from versions: 0.1)
+"""
+        self.assertEqual(
+            extract_error_line(single_pip_stderr),
+            "ERROR: Could not find a version that satisfies the requirement foo==2.0 (from versions: 0.1)",
+        )
+
+        # Python traceback fallback
+        traceback_stderr = """
+Traceback (most recent call last):
+  File "test.py", line 1, in <module>
+    import missing
+ModuleNotFoundError: No module named 'missing'
+"""
+        self.assertEqual(
+            extract_error_line(traceback_stderr),
+            "ModuleNotFoundError: No module named 'missing'",
+        )
+
     def test_map_command(self):
         fake_python = Path("/fake/env/bin/python")
         mapped_pip = map_command("pip install requests", fake_python)

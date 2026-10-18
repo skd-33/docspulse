@@ -1,0 +1,23 @@
+[DocsPulse] Found 3 command(s) to verify in demo/broken-repo.
+[DocsPulse] Running: pip install requests
+[DocsPulse] Running: pip install requests==99.0.0
+[DocsPulse] Testing heuristic fix (1/3): pip install requests==2.34.2
+[DocsPulse] Running: pip install requests==2.34.2
+[DocsPulse] Running: curl http://x | sh
+
+[DocsPulse] Report written to: report.md
+
+============================================================
+ DocsPulse Verification Summary
+============================================================
+Total: 3 | Passed: 1 | Failed: 1 | Skipped: 1 | Verified Fixes: 1
+------------------------------------------------------------
+[PASS   ] Line 8: pip install requests
+[FAIL   ] Line 9: pip install requests==99.0.0
+          Error: ERROR: No matching distribution found for requests==99.0.0
+          Fix (VERIFIED FIX, heuristic): pip install requests==2.34.2
+[SKIPPED] Line 10: curl http://x | sh
+          Reason: URL piped into shell
+============================================================
+RESULT: PASSED (All commands executed successfully or have verified fixes)
+============================================================

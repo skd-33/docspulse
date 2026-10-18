@@ -74,10 +74,12 @@ def generate_markdown_report(results: List[dict]) -> str:
 
         fix_val = r.get("fix")
         fix_status = r.get("fix_status")
+        fix_source = r.get("fix_source")
+        source_label = f", {fix_source}" if fix_source else ""
         if fix_status == "VERIFIED FIX" and fix_val:
-            fix_str = f"`{escape_markdown(fix_val)}` *(VERIFIED)*"
+            fix_str = f"`{escape_markdown(fix_val)}` *(VERIFIED{source_label})*"
         elif fix_status == "FIX NOT VERIFIED" and fix_val:
-            fix_str = f"`{escape_markdown(fix_val)}` *(NOT VERIFIED)*"
+            fix_str = f"`{escape_markdown(fix_val)}` *(NOT VERIFIED{source_label})*"
         else:
             fix_str = "-"
 
@@ -121,8 +123,10 @@ def print_terminal_summary(results: List[dict]) -> None:
                 print(f"          Error: {err}")
             fix = r.get("fix")
             fix_status = r.get("fix_status")
+            fix_source = r.get("fix_source")
+            source_label = f", {fix_source}" if fix_source else ""
             if fix:
-                print(f"          Fix ({fix_status}): {fix}")
+                print(f"          Fix ({fix_status}{source_label}): {fix}")
         elif status == "SKIPPED":
             reason = r.get("error_first_line", "")
             if reason:

@@ -10,10 +10,45 @@ from docspulse.fixer import (
     attempt_fix,
     build_fix_prompt,
     clean_llm_response,
+    get_heuristic_pip_fixes,
 )
 
 
 class TestFixer(unittest.TestCase):
+    def test_get_heuristic_pip_fixes_with_versions(self):
+        stderr = "ERROR: Could not find a version that satisfies the requirement requests==99.0.0 (from versions: 0.1.0, 2.31.0, 2.32.3)\nERROR: No matching distribution found for requests==99.0.0"
+        fixes = get_heuristic_pip_fixes("pip install requests==99.0.0", stderr)
+        self.assertEqual(
+            fixes,
+            ["pip install requests==2.32.3", "pip install requests"],
+        )
+
+    def test_get_heuristic_pip_fixes_without_versions(self):
+        stderr = "ERROR: Could not find a version that satisfies the requirement fake-pkg==1.0 (from versions: none)\nERROR: No matching distribution found for fake-pkg==1.0"
+        fixes = get_heuristic_pip_fixes("pip install fake-pkg==1.0", stderr)
+        self.assertEqual(fixes, ["pip install fake-pkg"])
+
+    def test_attempt_fix_deterministic_heuristic_works_with_provider_none(self):
+        mock_runner = MagicMock()
+        mock_runner.run_raw.return_value = {"exit_code": 0, "status": "PASS"}
+
+        cmd_result = {
+            "status": "FAIL",
+            "command": "pip install requests==99.0.0",
+            "stderr": "ERROR: Could not find a version that satisfies the requirement requests==99.0.0 (from versions: 2.32.3)\nERROR: No matching distribution found",
+            "stdout": "",
+            "stderr_tail": "ERROR: No matching distribution found",
+            "fix": None,
+            "fix_status": None,
+            "fix_source": None,
+        }
+
+        # Must work even with provider="none"!
+        res = attempt_fix(cmd_result, mock_runner, provider="none")
+        self.assertEqual(res["fix_status"], "VERIFIED FIX")
+        self.assertEqual(res["fix_source"], "heuristic")
+        self.assertEqual(res["fix"], "pip install requests==2.32.3")
+        mock_runner.run_raw.assert_called_once_with("pip install requests==2.32.3")
     def test_clean_llm_response(self):
         # Code fence with bash
         self.assertEqual(
@@ -121,28 +156,35 @@ class TestFixer(unittest.TestCase):
 
         cmd_result = {
             "status": "FAIL",
-            "command": "pip install requests==99.0.0",
-            "stderr_tail": "ERROR: Could not find a version",
+            "command": "python script.py --wrong-flag",
+            "stderr": "unrecognized arguments: --wrong-flag",
+            "stdout": "",
+            "stderr_tail": "unrecognized arguments: --wrong-flag",
             "fix": None,
             "fix_status": None,
+            "fix_source": None,
         }
 
-        with patch("docspulse.fixer.ask_llm", return_value="pip install requests"):
+        with patch("docspulse.fixer.ask_llm", return_value="python script.py"):
             res = attempt_fix(cmd_result, mock_runner, provider="ollama")
 
-        self.assertEqual(res["fix"], "pip install requests")
+        self.assertEqual(res["fix"], "python script.py")
         self.assertEqual(res["fix_status"], "VERIFIED FIX")
-        mock_runner.run_raw.assert_called_once_with("pip install requests")
+        self.assertEqual(res["fix_source"], "llm")
+        mock_runner.run_raw.assert_called_once_with("python script.py")
 
     def test_attempt_fix_unsafe_candidate(self):
         mock_runner = MagicMock()
 
         cmd_result = {
             "status": "FAIL",
-            "command": "pip install requests==99.0.0",
-            "stderr_tail": "ERROR",
+            "command": "python script.py",
+            "stderr": "some error",
+            "stdout": "",
+            "stderr_tail": "some error",
             "fix": None,
             "fix_status": None,
+            "fix_source": None,
         }
 
         # Mock LLM returns dangerous command
@@ -153,7 +195,7 @@ class TestFixer(unittest.TestCase):
         # Ensure runner was NEVER called for the unsafe candidate!
         mock_runner.run_raw.assert_not_called()
 
-    def test_attempt_fix_not_verified_after_2_attempts(self):
+    def test_attempt_fix_not_verified_after_max_candidates(self):
         mock_runner = MagicMock()
         mock_runner.run_raw.return_value = {
             "exit_code": 1,
@@ -163,20 +205,23 @@ class TestFixer(unittest.TestCase):
 
         cmd_result = {
             "status": "FAIL",
-            "command": "pip install foo",
-            "stderr_tail": "ERROR: not found",
+            "command": "python test.py",
+            "stderr": "syntax error",
+            "stdout": "",
+            "stderr_tail": "syntax error",
             "fix": None,
             "fix_status": None,
+            "fix_source": None,
         }
 
         with patch(
             "docspulse.fixer.ask_llm",
-            side_effect=["pip install foo-attempt1", "pip install foo-attempt2"],
+            side_effect=["python test1.py", "python test2.py", "python test3.py"],
         ):
             res = attempt_fix(cmd_result, mock_runner, provider="ollama")
 
         self.assertEqual(res["fix_status"], "FIX NOT VERIFIED")
-        self.assertEqual(mock_runner.run_raw.call_count, 2)
+        self.assertEqual(mock_runner.run_raw.call_count, 3)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,38 @@
+name: Try DocsPulse
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo_url:
+        description: "GitHub repository URL or local path to verify"
+        required: true
+        default: "https://github.com/psf/requests"
+
+jobs:
+  try-it:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out DocsPulse
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install DocsPulse
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .
+
+      - name: Run DocsPulse on Target
+        continue-on-error: true
+        run: |
+          docspulse "${{ inputs.repo_url }}" --provider none
+
+      - name: Publish Verification Report
+        if: always()
+        run: |
+          if [ -f report.md ]; then
+            cat report.md >> $GITHUB_STEP_SUMMARY
+          fi

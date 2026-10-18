@@ -50,6 +50,28 @@ def map_command(command: str, python_bin: Path) -> list[str]:
         return [str(python_bin), "-m", tokens[0]] + tokens[1:]
 
 
+def extract_error_line(stderr: str, stdout: str = "") -> str:
+    """
+    Extract the most informative error line.
+    Prefer the last line starting with 'ERROR:' that is not 'Ignored the following yanked versions';
+    otherwise the last non-empty stderr line (or stdout line if stderr is empty).
+    """
+    lines = [l.strip() for l in (stderr or "").splitlines() if l.strip()]
+    if not lines and stdout:
+        lines = [l.strip() for l in stdout.splitlines() if l.strip()]
+    if not lines:
+        return ""
+
+    error_lines = [
+        l for l in lines
+        if l.startswith("ERROR:") and "Ignored the following yanked versions" not in l
+    ]
+    if error_lines:
+        return error_lines[-1]
+
+    return lines[-1]
+
+
 class VenvRunner:
     """Manages execution of commands in an isolated temporary virtual environment."""
 
@@ -138,15 +160,7 @@ class VenvRunner:
 
         error_first_line = ""
         if status == "FAIL":
-            for line in stderr_lines:
-                if line.strip():
-                    error_first_line = line.strip()
-                    break
-            if not error_first_line:
-                for line in stdout_lines:
-                    if line.strip():
-                        error_first_line = line.strip()
-                        break
+            error_first_line = extract_error_line(stderr, stdout)
         elif status == "TIMEOUT":
             error_first_line = f"Timed out after {effective_timeout}s"
 

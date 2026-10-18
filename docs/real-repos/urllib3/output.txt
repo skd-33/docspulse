@@ -1,0 +1,41 @@
+[DocsPulse] Found 10 command(s) to verify in C:\Users\hp\AppData\Local\Temp\docspulse_git_1gemojv1.
+[DocsPulse] Running: python -m pip install urllib3
+[DocsPulse] Running: git clone https://github.com/urllib3/urllib3.git
+[DocsPulse] Running: cd urllib3
+[DocsPulse] Running: pip install .
+[DocsPulse] Running: >>> import urllib3
+[DocsPulse] Running: >>> resp = urllib3.request("GET", "http://httpbin.org/robots.txt")
+[DocsPulse] Running: >>> resp.status
+[DocsPulse] Running: 200
+[DocsPulse] Running: >>> resp.data
+[DocsPulse] Running: b"User-agent: *\nDisallow: /deny\n"
+
+[DocsPulse] Report written to: C:\Users\hp\Desktop\HACTOOBER\HACKDAYS\docspulse\report.md
+
+============================================================
+ DocsPulse Verification Summary
+============================================================
+Total: 10 | Passed: 2 | Failed: 0 | Skipped: 8 | Verified Fixes: 0
+------------------------------------------------------------
+[PASS   ] Line 45: python -m pip install urllib3
+[SKIPPED] Line 51: git clone https://github.com/urllib3/urllib3.git
+          Reason: First token 'git' is not allowed
+[SKIPPED] Line 52: cd urllib3
+          Reason: First token 'cd' is not allowed
+[PASS   ] Line 53: pip install .
+[SKIPPED] Line 61: >>> import urllib3
+          Reason: Contains forbidden redirection operator: '>' or '<'
+[SKIPPED] Line 62: >>> resp = urllib3.request("GET", "http://httpbin.org/robots.txt")
+          Reason: Contains forbidden redirection operator: '>' or '<'
+[SKIPPED] Line 63: >>> resp.status
+          Reason: Contains forbidden redirection operator: '>' or '<'
+[SKIPPED] Line 64: 200
+          Reason: First token '200' is not allowed
+[SKIPPED] Line 65: >>> resp.data
+          Reason: Contains forbidden redirection operator: '>' or '<'
+[SKIPPED] Line 66: b"User-agent: *\nDisallow: /deny\n"
+          Reason: First token 'b"User-agent:' is not allowed
+============================================================
+RESULT: PASSED (All commands executed successfully or have verified fixes)
+============================================================
+

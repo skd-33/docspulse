@@ -31,8 +31,8 @@ def parse_args(args=None):
     )
     parser.add_argument(
         "--model",
-        default="qwen2.5:1.5b",
-        help="LLM model name to query (default: qwen2.5:1.5b).",
+        default="qwen2.5-coder:3b",
+        help="LLM model name to query (default: qwen2.5-coder:3b).",
     )
     parser.add_argument(
         "--timeout",
@@ -46,7 +46,7 @@ def parse_args(args=None):
 def run_pipeline(
     target: str,
     provider: str = "ollama",
-    model: str = "qwen2.5:1.5b",
+    model: str = "qwen2.5-coder:3b",
     timeout: int = 120,
 ) -> int:
     """Run the complete DocsPulse verification pipeline."""
@@ -70,7 +70,7 @@ def run_pipeline(
     with VenvRunner(repo_dir=repo_dir, timeout=timeout) as runner:
         for item in commands:
             cmd_res = runner.run_command(item)
-            if cmd_res.get("status") == "FAIL" and provider != "none":
+            if cmd_res.get("status") == "FAIL":
                 attempt_fix(cmd_res, runner, provider=provider, model=model)
             results.append(cmd_res)
 

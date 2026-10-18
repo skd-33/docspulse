@@ -95,7 +95,7 @@ DocsPulse supports multiple LLM providers:
 
 ```bash
 # Default: Local Ollama (zero API cost, private)
-docspulse . --provider ollama --model qwen2.5:1.5b
+docspulse . --provider ollama --model qwen2.5-coder:3b
 
 # Google Gemini (requires GEMINI_API_KEY environment variable)
 export GEMINI_API_KEY="your-api-key"
@@ -133,7 +133,7 @@ options:
   -h, --help            show this help message and exit
   --provider {ollama,gemini,none}
                         LLM provider for generating proposed fixes (default: ollama).
-  --model MODEL         LLM model name to query (default: qwen2.5:1.5b).
+  --model MODEL         LLM model name to query (default: qwen2.5-coder:3b).
   --timeout TIMEOUT     Timeout in seconds for each command execution (default: 120).
 ```
 

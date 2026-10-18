@@ -15,7 +15,7 @@ class TestCli(unittest.TestCase):
         args = parse_args(["./README.md"])
         self.assertEqual(args.target, "./README.md")
         self.assertEqual(args.provider, "ollama")
-        self.assertEqual(args.model, "qwen2.5:1.5b")
+        self.assertEqual(args.model, "qwen2.5-coder:3b")
         self.assertEqual(args.timeout, 120)
 
     def test_parse_args_custom(self):

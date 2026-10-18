@@ -25,3 +25,5 @@ dependencies = []
 
 [project.scripts]
 docspulse = "docspulse.cli:main"
+[tool.setuptools]
+packages = ["docspulse"]

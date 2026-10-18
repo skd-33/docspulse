@@ -207,15 +207,22 @@ Saved copies of this output are in [`docs/example-output.txt`](docs/example-outp
 
 ### Results on real repositories
 
-I also ran DocsPulse on three small public Python repositories. The unedited outputs are in [`docs/real-repos/`](docs/real-repos/).
+I also ran DocsPulse on four popular public Python repositories, using `--provider none`. The unedited outputs and reports are in [`docs/real-repos/`](docs/real-repos/).
 
 | Repository | Commands found | Passed | Failed | Skipped | Verified fixes |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| _repo 1_ | _n_ | _n_ | _n_ | _n_ | _n_ |
-| _repo 2_ | _n_ | _n_ | _n_ | _n_ | _n_ |
-| _repo 3_ | _n_ | _n_ | _n_ | _n_ | _n_ |
+| bottle | 0 | 0 | 0 | 0 | 0 |
+| httpx | 4 | 3 | 1 | 0 | 0 |
+| starlette | 18 | 2 | 0 | 16 | 0 |
+| urllib3 | 10 | 2 | 0 | 8 | 0 |
+| **Total** | **32** | **7** | **1** | **24** | **0** |
 
----
+What these results show:
+
+- **DocsPulse is cautious.** 24 of the 32 commands were skipped because they did not pass the safety check (for example, they were not `pip`, `python` or `pytest` commands, or they contained shell operators). Nothing was run that the allowlist did not approve.
+- **It did not invent success.** The one failure in `httpx` is reported as a failure, and no fix was labelled verified, because none passed when run.
+- **Some READMEs have nothing to test.** `bottle` had no commands that DocsPulse could extract, so it reported zero.
+- **The skip rate is a real limitation.** Supporting more kinds of commands is the main item on the [Roadmap](#roadmap).
 
 ## How to read the report
 

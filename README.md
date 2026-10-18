@@ -357,6 +357,29 @@ python -m docspulse.cli . --provider none
 ```
 
 ---
+### Using a local model (optional, on your own computer)
+
+Built-in rules fix common pip errors with no model. If you also want a local model to suggest fixes for other errors:
+
+1. **Install Ollama** from [ollama.com](https://ollama.com). On Windows and macOS it starts in the background after install. On Linux, run `ollama serve` in a separate terminal.
+2. **Download the model once** (about 2 GB):
+```bash
+   ollama pull qwen2.5-coder:3b
+```
+3. **Check that it works:**
+```bash
+   ollama run qwen2.5-coder:3b "say hi"
+```
+4. **Run DocsPulse with it:**
+```bash
+   docspulse . --provider ollama --model qwen2.5-coder:3b
+```
+
+DocsPulse talks to Ollama at `http://localhost:11434`, which is Ollama's default address. Nothing leaves your machine. To use a different model, change `--model` to any model you have pulled, for example `--model qwen2.5:1.5b`.
+
+If Ollama is not running, DocsPulse prints a message and continues with the built-in rules only.
+
+**Local models do not work in Codespaces or the GitHub Action**, because those machines do not have Ollama. There, use `--provider none` (the default) or `--provider gemini` with an API key.
 
 ## GitHub Action reference
 
@@ -364,7 +387,7 @@ python -m docspulse.cli . --provider none
 - uses: actions/checkout@v4
 - uses: skd-33/docspulse@v1
   with:
-    provider: none                                   # none | ollama | gemini
+    provider: none                                   # none | gemini (ollama needs a local install, so it won't work on GitHub's runner)
     gemini-api-key: ${{ secrets.GEMINI_API_KEY }}    # only for provider: gemini
     model: qwen2.5-coder:3b
     timeout: 120
@@ -373,7 +396,7 @@ python -m docspulse.cli . --provider none
 
 | Input | Default | Meaning |
 | :--- | :--- | :--- |
-| `provider` | `none` | Fix strategy |
+| `provider` | `none` | Fix strategy: `none` or `gemini` |
 | `gemini-api-key` | empty | Passed as `GEMINI_API_KEY`. Store it as a repository secret |
 | `model` | `qwen2.5-coder:3b` | Model name |
 | `timeout` | `120` | Seconds per command |

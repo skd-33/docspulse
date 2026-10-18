@@ -219,10 +219,10 @@ I also ran DocsPulse on four popular public Python repositories, using `--provid
 
 What these results show:
 
-- **DocsPulse is cautious.** 24 of the 32 commands were skipped because they did not pass the safety check (for example, they were not `pip`, `python` or `pytest` commands, or they contained shell operators). Nothing was run that the allowlist did not approve.
-- **It did not invent success.** The one failure in `httpx` is reported as a failure, and no fix was labelled verified, because none passed when run.
-- **Some READMEs have nothing to test.** `bottle` had no commands that DocsPulse could extract, so it reported zero.
-- **The skip rate is a real limitation.** Supporting more kinds of commands is the main item on the [Roadmap](#roadmap).
+- **DocsPulse is cautious.** 24 of the 32 commands were skipped because they did not pass the safety check, for example because they were not `pip`, `python` or `pytest` commands, or because they contained shell operators. Nothing was run that the allowlist did not approve.
+- **Testing on real READMEs found a bug in DocsPulse itself.** The one failure, in `httpx`, is not a documentation problem. The README line was `pip install 'httpx[cli]'` followed by an inline `# comment`, and DocsPulse wrongly passed the comment to pip. Fixing inline comment handling in `parser.py` is the first item on the [Roadmap](#roadmap).
+- **Some READMEs have nothing to test.** `bottle` had no commands that DocsPulse could extract.
+- **The skip rate is a real limitation.** Supporting more kinds of commands is the main item on the Roadmap.
 
 ## How to read the report
 
@@ -500,6 +500,7 @@ With `--provider none` or `--provider ollama`, no. With `--provider gemini`, the
 
 ## Limitations
 
+- **Inline comments are not stripped yet.** A command followed by `# comment` on the same line can be reported as a failure by mistake (seen on the httpx README).
 - **Python and pip only for now.** Commands for other ecosystems (npm, cargo, apt, Docker) are skipped.
 - **Fenced code blocks only.** Instructions written as plain sentences are not detected.
 - **Built-in rules cover pip version errors.** Other kinds of failure depend on the optional model.
@@ -512,6 +513,7 @@ With `--provider none` or `--provider ollama`, no. With `--provider gemini`, the
 
 ## Roadmap
 
+- Strip inline comments (`# ...`) after a command, found when testing on the httpx README.
 - Rules for more pip errors, such as dependency conflicts and missing build tools.
 - Support for npm, Docker and `make` targets, each with its own allowlist.
 - Detect instructions written outside code blocks.

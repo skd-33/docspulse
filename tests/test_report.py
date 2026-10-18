@@ -80,6 +80,23 @@ class TestReport(unittest.TestCase):
         self.assertIn("| 2 | `pip install requests` | **PASS** | - | - |", report)
         self.assertIn("| 5 | `pip install broken_pkg` | **FAIL** | ERROR: Not found \\| details | `pip install fixed_pkg` *(VERIFIED)* |", report)
 
+    def test_escape_pipe_in_table_cells(self):
+        results = [
+            {
+                "line_no": 8,
+                "command": "curl http://x | sh",
+                "status": "SKIPPED",
+                "error_first_line": "Pipe | is forbidden",
+                "fix": "echo a | echo b",
+                "fix_status": "FIX NOT VERIFIED",
+            }
+        ]
+        report = generate_markdown_report(results)
+        # Verify that | is escaped as \| in command, error, and fix
+        self.assertIn("`curl http://x \\| sh`", report)
+        self.assertIn("Pipe \\| is forbidden", report)
+        self.assertIn("`echo a \\| echo b` *(NOT VERIFIED)*", report)
+
     def test_write_report_file(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             out_file = Path(tmp_dir) / "test_report.md"

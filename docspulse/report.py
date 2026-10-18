@@ -40,7 +40,7 @@ def escape_markdown(text: str) -> str:
     """Escape pipe characters and clean newlines for Markdown table cells."""
     if not text:
         return "-"
-    cleaned = text.replace("\n", " ").replace("\r", "").replace("|", "\\|").strip()
+    cleaned = text.replace("\r", "").replace("\n", " ").replace("|", "\\|").strip()
     return cleaned if cleaned else "-"
 
 
@@ -67,16 +67,17 @@ def generate_markdown_report(results: List[dict]) -> str:
 
     for r in results:
         line_no = r.get("line_no", "-")
-        cmd = r.get("command", "")
+        cmd_raw = r.get("command", "")
+        cmd = escape_markdown(cmd_raw)
         status = r.get("status", "")
         error = escape_markdown(r.get("error_first_line", ""))
 
         fix_val = r.get("fix")
         fix_status = r.get("fix_status")
         if fix_status == "VERIFIED FIX" and fix_val:
-            fix_str = f"`{fix_val}` *(VERIFIED)*"
+            fix_str = f"`{escape_markdown(fix_val)}` *(VERIFIED)*"
         elif fix_status == "FIX NOT VERIFIED" and fix_val:
-            fix_str = f"`{fix_val}` *(NOT VERIFIED)*"
+            fix_str = f"`{escape_markdown(fix_val)}` *(NOT VERIFIED)*"
         else:
             fix_str = "-"
 

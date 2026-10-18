@@ -32,14 +32,31 @@ def clean_llm_response(text: str) -> str:
     return cmd.strip()
 
 
-def build_fix_prompt(failed_command: str, stderr_tail: str) -> str:
+def build_fix_prompt(
+    failed_command: str,
+    stderr_tail: str,
+    attempt: int = 1,
+    previous_fix: Optional[str] = None,
+    previous_error: Optional[str] = None,
+) -> str:
     """Create a short, strict prompt for LLM fix generation."""
-    return (
-        f"Fix this failed command.\n"
-        f"Command: {failed_command}\n"
-        f"Error:\n{stderr_tail}\n\n"
-        f"Reply with ONLY one corrected command on one line. No explanation, no markdown."
-    )
+    if attempt == 1:
+        return (
+            f"Fix this failed command.\n"
+            f"Command: {failed_command}\n"
+            f"Error:\n{stderr_tail}\n\n"
+            f"Reply with ONLY one corrected command on one line. No explanation, no markdown."
+        )
+    else:
+        prev_err_text = f"\nError from previous fix:\n{previous_error}" if previous_error else ""
+        return (
+            f"Fix this failed command.\n"
+            f"Original Command: {failed_command}\n"
+            f"Original Error:\n{stderr_tail}\n"
+            f"Previous attempt that FAILED: {previous_fix}{prev_err_text}\n\n"
+            f"Instruct: Do NOT repeat the previous failed command '{previous_fix}' or the original command.\n"
+            f"Reply with ONLY one DIFFERENT corrected command on one line. No explanation, no markdown."
+        )
 
 
 def ask_llm(
@@ -128,6 +145,7 @@ def attempt_fix(
     """
     Attempt to fix a failed command using LLM and verify by re-running in the venv.
     Labels 'VERIFIED FIX' or 'FIX NOT VERIFIED' (max 2 attempts).
+    Never re-runs a candidate identical to one already tried.
     """
     if provider == "none" or cmd_result.get("status") != "FAIL":
         return cmd_result
@@ -135,24 +153,44 @@ def attempt_fix(
     failed_cmd = cmd_result.get("command", "")
     stderr_tail = cmd_result.get("stderr_tail", "")
 
+    tried_candidates = {failed_cmd}
+    prev_fix = None
+    prev_error = None
+
     for attempt in range(1, 3):
-        prompt = build_fix_prompt(failed_cmd, stderr_tail)
+        prompt = build_fix_prompt(
+            failed_cmd,
+            stderr_tail,
+            attempt=attempt,
+            previous_fix=prev_fix,
+            previous_error=prev_error,
+        )
         raw_reply = ask_llm(prompt, provider=provider, model=model)
         candidate = clean_llm_response(raw_reply)
 
         if not candidate:
-            # LLM unavailable or empty reply
-            cmd_result["fix"] = None
-            cmd_result["fix_status"] = None
+            if attempt == 1:
+                cmd_result["fix"] = None
+                cmd_result["fix_status"] = None
             return cmd_result
 
         cmd_result["fix"] = candidate
+
+        # Never re-run a candidate identical to one already tried
+        if candidate in tried_candidates:
+            print(f"[DocsPulse] LLM proposed already-tried command '{candidate}'. Skipping re-run.")
+            cmd_result["fix_status"] = "FIX NOT VERIFIED"
+            return cmd_result
+
+        tried_candidates.add(candidate)
+        prev_fix = candidate
 
         # Safety validation
         safety_status, reason = check_safety(candidate)
         if safety_status != "run":
             print(f"[DocsPulse] Proposed fix '{candidate}' rejected by safety: {reason}")
             cmd_result["fix_status"] = "FIX NOT VERIFIED"
+            prev_error = reason
             continue
 
         # Re-run candidate command in the same venv
@@ -164,6 +202,6 @@ def attempt_fix(
             return cmd_result
         else:
             cmd_result["fix_status"] = "FIX NOT VERIFIED"
-            stderr_tail = rerun_res.get("stderr_tail") or stderr_tail
+            prev_error = rerun_res.get("stderr_tail") or rerun_res.get("stdout_tail") or "Command failed"
 
     return cmd_result

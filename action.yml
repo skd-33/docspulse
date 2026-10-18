@@ -1,0 +1,54 @@
+name: "DocsPulse"
+description: "Verify README install instructions by actually running them in an isolated environment."
+author: "skd-33"
+
+inputs:
+  provider:
+    description: "LLM provider for generating proposed fixes (ollama, gemini, none)."
+    required: false
+    default: "none"
+  gemini-api-key:
+    description: "Google Gemini API key (optional, used when provider is gemini)."
+    required: false
+    default: ""
+  model:
+    description: "LLM model name to query."
+    required: false
+    default: "qwen2.5:1.5b"
+  timeout:
+    description: "Timeout in seconds for each command."
+    required: false
+    default: "120"
+  path:
+    description: "Path to repository directory or README file."
+    required: false
+    default: "."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install DocsPulse
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install .
+
+    - name: Run DocsPulse
+      shell: bash
+      env:
+        GEMINI_API_KEY: ${{ inputs.gemini-api-key }}
+      run: |
+        docspulse "${{ inputs.path }}" --provider "${{ inputs.provider }}" --model "${{ inputs.model }}" --timeout "${{ inputs.timeout }}"
+
+    - name: Publish Summary
+      if: always()
+      shell: bash
+      run: |
+        if [ -f report.md ]; then
+          cat report.md >> $GITHUB_STEP_SUMMARY
+        fi
